@@ -2,7 +2,6 @@ import os
 import streamlit as st
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
@@ -10,9 +9,7 @@ from langchain.prompts import PromptTemplate
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer, pipeline
 from threading import Thread
 from settings import settings
-import faiss
-import numpy as np
-import json
+import uuid
 
 class RAGSystem:
     def __init__(self):
@@ -31,17 +28,16 @@ class RAGSystem:
         
         index_file = os.path.join(settings.VECTOR_STORE_PATH, "index.faiss")
         if os.path.exists(index_file):
-            # For debug
+            # For debugging
             # st.info(f"Loading existing vector store from {settings.VECTOR_STORE_PATH}")
             try:
-                return FAISS.load_local(settings.VECTOR_STORE_PATH, self.embedding_model, allow_dangerous_deserialization = True)
+                return FAISS.load_local(settings.VECTOR_STORE_PATH, self.embedding_model, allow_dangerous_deserialization=True)
             except Exception as e:
                 st.error(f"Error loading existing vector store: {str(e)}")
                 st.info("Initializing a new vector store.")
         else:
             st.info("No existing vector store found. Initializing a new one.")
         
-        # Initialize a new vector store
         new_store = FAISS.from_texts(["Initial document"], self.embedding_model)
         new_store.save_local(settings.VECTOR_STORE_PATH)
         return new_store
@@ -70,14 +66,25 @@ class RAGSystem:
             chain_type_kwargs={"prompt": prompt_template}
         )
 
-    def add_document(self, content):
+    def add_document(self, content, name):
         texts = self.text_splitter.split_text(content)
-        self.vector_store.add_texts(texts)
+        metadatas = [{"source": name, "id": str(uuid.uuid4())} for _ in texts]
+        self.vector_store.add_texts(texts, metadatas=metadatas)
         self.vector_store.save_local(settings.VECTOR_STORE_PATH)
-        st.success(f"Document added successfully. Vector store saved to {settings.VECTOR_STORE_PATH}")
+        st.success(f"Document '{name}' added successfully. Vector store saved to {settings.VECTOR_STORE_PATH}")
 
-    def get_document_count(self):
-        return len(self.vector_store.docstore._dict)
+    def get_all_documents(self):
+        return [
+            {"id": doc.metadata.get("id"), "name": doc.metadata.get("source"), "content": doc.page_content}
+            for doc in self.vector_store.docstore._dict.values()
+        ]
+
+    def delete_document(self, doc_id):
+        docs_to_keep = [doc for doc in self.vector_store.docstore._dict.values() if doc.metadata.get("id") != doc_id]
+        new_store = FAISS.from_documents(docs_to_keep, self.embedding_model)
+        new_store.save_local(settings.VECTOR_STORE_PATH)
+        self.vector_store = new_store
+        st.success(f"Document with ID {doc_id} deleted successfully.")
 
     def clear_vector_store(self):
         self.vector_store = FAISS.from_texts(["Vector store cleared"], self.embedding_model)
@@ -112,3 +119,7 @@ class RAGSystem:
             chunk_overlap=settings.CHUNK_OVERLAP
         )
         self.qa_chain = self.setup_qa_chain()
+
+    def get_vector_representations(self):
+        vectors = self.vector_store.index.reconstruct_n(0, self.vector_store.index.ntotal)
+        return vectors

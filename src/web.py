@@ -2,6 +2,8 @@ import streamlit as st
 from utils import extract_text_from_pdf
 from settings import settings
 import os
+import plotly.express as px
+from sklearn.decomposition import PCA
 
 def setup_page():
     st.set_page_config(layout="wide", page_title="Advanced RAG Chatbot", page_icon="🤖")
@@ -9,7 +11,7 @@ def setup_page():
 def sidebar():
     with st.sidebar:
         st.title("🧭 Navigation")
-        return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management"], key="navigation")
+        return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management", "🎨 Vector Visualization"], key="navigation")
 
 def chatbot_page(rag_system):
     st.title("💬 Advanced RAG Chatbot")
@@ -60,41 +62,55 @@ def config_page(rag_system):
         rag_system.update_config()
         st.success("Configuration updated successfully!")
 
-def database_page(rag_system):
+def document_management_page(rag_system):
     st.title("📚 Document Management")
+    
+    st.warning("The vector store is loaded with 'allow_dangerous_deserialization=True'. Ensure that the vector store file is from a trusted source.")
 
     st.subheader("Add New Document")
     uploaded_file = st.file_uploader("Upload a document (TXT or PDF)", type=["txt", "pdf"])
     if uploaded_file is not None:
+        document_name = st.text_input("Document Name", value=uploaded_file.name)
         if uploaded_file.type == "text/plain":
             content = uploaded_file.read().decode()
         elif uploaded_file.type == "application/pdf":
             content = extract_text_from_pdf(uploaded_file)
         
         if st.button("Add Document"):
-            rag_system.add_document(content)
+            rag_system.add_document(content, document_name)
             st.experimental_rerun()
 
-    st.subheader("Vector Store Information")
-    doc_count = rag_system.get_document_count()
-    st.write(f"Number of documents: {doc_count}")
+    st.subheader("Manage Documents")
+    documents = rag_system.get_all_documents()
+    for doc in documents:
+        col1, col2, col3 = st.columns([3, 1, 1])
+        col1.write(f"{doc['name']}")
+        if col2.button("View", key=f"view_{doc['id']}"):
+            st.text_area("Document Content", value=doc['content'], height=200)
+        if col3.button("Delete", key=f"delete_{doc['id']}"):
+            rag_system.delete_document(doc['id'])
+            st.experimental_rerun()
 
-    if st.button("Clear Vector Store"):
+    if st.button("Clear All Documents"):
         rag_system.clear_vector_store()
-        st.rerun()
+        st.experimental_rerun()
 
-    st.subheader("Sample Queries")
-    sample_query = st.text_input("Enter a sample query to test document retrieval:")
-    if st.button("Retrieve Relevant Documents"):
-        if sample_query:
-            docs = rag_system.vector_store.similarity_search(sample_query, k=settings.TOP_K_DOCUMENTS)
-            for i, doc in enumerate(docs, 1):
-                st.write(f"Document {i}:")
-                st.text(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
-        else:
-            st.warning("Please enter a sample query.")
+def vector_visualization_page(rag_system):
+    st.title("🎨 Vector Visualization")
 
-    st.subheader("Debug Information")
-    st.write(f"Vector Store Path: {settings.VECTOR_STORE_PATH}")
-    st.write(f"Vector Store Path Exists: {os.path.exists(settings.VECTOR_STORE_PATH)}")
-    st.write(f"Vector Store Type: {type(rag_system.vector_store).__name__}")
+    vectors = rag_system.get_vector_representations()
+    
+    if len(vectors) > 1:
+        pca = PCA(n_components=3)
+        vectors_3d = pca.fit_transform(vectors)
+
+        fig = px.scatter_3d(
+            x=vectors_3d[:, 0],
+            y=vectors_3d[:, 1],
+            z=vectors_3d[:, 2],
+            title="3D Visualization of Document Vectors",
+            labels={'x': 'PCA 1', 'y': 'PCA 2', 'z': 'PCA 3'}
+        )
+        st.plotly_chart(fig)
+    else:
+        st.warning("Not enough documents to visualize. Please add more documents.")

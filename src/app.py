@@ -1,6 +1,6 @@
 import streamlit as st
 from rag_system import RAGSystem
-from web import setup_page, sidebar, chatbot_page, config_page, database_page
+from web import setup_page, sidebar, chatbot_page, config_page, document_management_page, vector_visualization_page
 
 def main():
     setup_page()
@@ -18,7 +18,9 @@ def main():
     elif page == "⚙️ Config":
         config_page(rag_system)
     elif page == "📚 Document Management":
-        database_page(rag_system)
+        document_management_page(rag_system)
+    elif page == "🎨 Vector Visualization":
+        vector_visualization_page(rag_system)
 
 if __name__ == "__main__":
     main()
