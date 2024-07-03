@@ -12,6 +12,12 @@
 ### YouTube Video
 [![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
 
+## TO-DO LIST:
+* Implement a Kmeans Clustering Algorithm to Cluster similarities.
+* Summary Generation for better document understanding.
+* Semantic Search.
+* Name Entity Recognition (NER) to extract key entities in documents.
+
 <!-- TABLE OF CONTENTS -->
 <details>
   <summary>Table of Contents</summary>
