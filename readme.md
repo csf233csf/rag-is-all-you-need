@@ -8,6 +8,8 @@
   </p>
 </div>
 
+## Video Demo
+### YouTube Video
 [![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
 
 <!-- TABLE OF CONTENTS -->
