@@ -8,6 +8,8 @@
   </p>
 </div>
 
+[![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
+
 <!-- TABLE OF CONTENTS -->
 <details>
   <summary>Table of Contents</summary>
