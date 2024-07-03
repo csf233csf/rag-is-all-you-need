@@ -78,7 +78,7 @@ def document_management_page(rag_system):
         
         if st.button("Add Document"):
             rag_system.add_document(content, document_name)
-            st.experimental_rerun()
+            st.rerun()
 
     st.subheader("Manage Documents")
     documents = rag_system.get_all_documents()
@@ -89,11 +89,11 @@ def document_management_page(rag_system):
             st.text_area("Document Content", value=doc['content'], height=200)
         if col3.button("Delete", key=f"delete_{doc['id']}"):
             rag_system.delete_document(doc['id'])
-            st.experimental_rerun()
+            st.rerun()
 
     if st.button("Clear All Documents"):
         rag_system.clear_vector_store()
-        st.experimental_rerun()
+        st.rerun()
 
 def vector_visualization_page(rag_system):
     st.title("🎨 Vector Visualization")
