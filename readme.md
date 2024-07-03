@@ -89,9 +89,6 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <!-- ACKNOWLEDGMENTS -->
 ## Big Credits
-
-Use this space to list resources you find helpful and would like to give credit to. I've included a few of my favorites to kick things off!
-
 * [LangChainAI](https://github.com/langchain-ai/langchain)
 * [Huggingface Transformer](https://github.com/huggingface/transformers)
 * [Faiss](https://github.com/facebookresearch/faiss)
