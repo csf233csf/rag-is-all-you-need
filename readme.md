@@ -14,15 +14,15 @@
   <ol>
     <li>
       <a href="#about-the-project">About The Project</a>
-      <ul>
+<!--       <ul>
         <li><a href="#built-with">Built With</a></li>
-      </ul>
+      </ul> -->
     </li>
     <li>
       <a href="#getting-started">Getting Started</a>
-      <ul>
+<!--       <ul>
         <li><a href="#Prerequisites & Installation">Prerequisites</a></li>
-      </ul>
+      </ul> -->
     </li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
