@@ -4,13 +4,11 @@ from web import setup_page, sidebar, chatbot_page, config_page, document_managem
 
 def main():
     setup_page()
-
     @st.cache_resource
     def get_rag_system():
         return RAGSystem()
-
+    
     rag_system = get_rag_system()
-
     page = sidebar()
 
     if page == "💬 Chatbot":

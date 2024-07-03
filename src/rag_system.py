@@ -13,6 +13,11 @@ import uuid
 
 class RAGSystem:
     def __init__(self):
+        '''
+        Load Model and Tokenizer
+        Load Embedding Model, Chunk Splitter
+        Load Vector Database, QA Chain
+        '''
         self.tokenizer = AutoTokenizer.from_pretrained(settings.LLM_MODEL, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(settings.LLM_MODEL, device_map="auto", trust_remote_code=True).eval()
         self.embedding_model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
@@ -24,6 +29,9 @@ class RAGSystem:
         self.qa_chain = self.setup_qa_chain()
 
     def load_vector_store(self):
+        '''
+        Initializing Vector Database and load the database.
+        '''
         os.makedirs(settings.VECTOR_STORE_PATH, exist_ok=True)
         
         index_file = os.path.join(settings.VECTOR_STORE_PATH, "index.faiss")
@@ -43,6 +51,9 @@ class RAGSystem:
         return new_store
 
     def setup_qa_chain(self):
+        '''
+        Essential RAG techniques
+        '''
         pipe = pipeline(
             "text-generation",
             model=self.model,
@@ -67,6 +78,9 @@ class RAGSystem:
         )
 
     def add_document(self, content, name):
+        '''
+        Add vectorization of documents
+        '''
         texts = self.text_splitter.split_text(content)
         metadatas = [{"source": name, "id": str(uuid.uuid4())} for _ in texts]
         self.vector_store.add_texts(texts, metadatas=metadatas)
@@ -92,6 +106,9 @@ class RAGSystem:
         st.success("Vector store cleared successfully!")
 
     def generate_stream(self, query):
+        '''
+        Generates Stream Outputs of LLM
+        '''
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
         
         docs = self.vector_store.similarity_search(query, k=settings.TOP_K_DOCUMENTS)
@@ -121,5 +138,8 @@ class RAGSystem:
         self.qa_chain = self.setup_qa_chain()
 
     def get_vector_representations(self):
+        '''
+        Vector Visualization for Visualization Page
+        '''
         vectors = self.vector_store.index.reconstruct_n(0, self.vector_store.index.ntotal)
         return vectors

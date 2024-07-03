@@ -38,7 +38,7 @@ def chatbot_page(rag_system):
 def config_page(rag_system):
     st.title("⚙️ RAG Configuration")
 
-    max_tokens = st.number_input("Max Tokens", min_value=1, max_value=2048, value=settings.MAX_TOKENS)
+    max_tokens = st.number_input("Max Tokens", min_value=1, max_value=4096, value=settings.MAX_TOKENS)
     temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=settings.TEMPERATURE, step=0.1)
     top_p = st.slider("Top P", min_value=0.0, max_value=1.0, value=settings.TOP_P, step=0.05)
     repetition_penalty = st.slider("Repetition Penalty", min_value=1.0, max_value=2.0, value=settings.REPETITION_PENALTY, step=0.05)
@@ -64,7 +64,7 @@ def config_page(rag_system):
 def document_management_page(rag_system):
     st.title("📚 Document Management")
     
-    st.warning("The vector store is loaded with 'allow_dangerous_deserialization=True'. Ensure that the vector store file is from a trusted source.")
+    # st.warning("The vector store is loaded with 'allow_dangerous_deserialization=True'. Ensure that the vector store file is from a trusted source.")
 
     st.subheader("Add New Document")
     uploaded_file = st.file_uploader("Upload a document (TXT or PDF)", type=["txt", "pdf"])
@@ -94,7 +94,7 @@ def document_management_page(rag_system):
         rag_system.clear_vector_store()
         st.rerun()
 
-def vector_visualization_page(rag_system):
+def  vector_visualization_page(rag_system):
     st.title("🎨 Vector Visualization")
 
     vectors = rag_system.get_vector_representations()
