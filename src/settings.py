@@ -5,7 +5,7 @@ load_dotenv()  # Load environment variables from .env file
 
 class Settings:
     # Model settings
-    LLM_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen2-0.5B-Instruct")
+    LLM_MODEL = os.getenv("LLM_MODEL", "EleutherAI/gpt-neo-2.7B")
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
     
     # Generation settings

@@ -1,7 +1,6 @@
 import streamlit as st
 from utils import extract_text_from_pdf
 from settings import settings
-import os
 import plotly.express as px
 from sklearn.decomposition import PCA
 
@@ -14,7 +13,7 @@ def sidebar():
         return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management", "🎨 Vector Visualization"], key="navigation")
 
 def chatbot_page(rag_system):
-    st.title("💬 Advanced RAG Chatbot")
+    st.title("💬 RAG Chatbot")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
