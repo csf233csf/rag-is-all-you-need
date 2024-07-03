@@ -36,10 +36,15 @@ RAG stands for Retrieval-Augmented Generation, which is another way of letting a
 
 ### Built With
 * ![LangChain](https://img.shields.io/badge/langchain-white?style=for-the-badge&logo=langchain&logoColor=black)
+* - Text Embedding, Model Pipeline Huggingface, RetrievalQA, Database Retrieval
 * ![Huggingface](https://img.shields.io/badge/Huggingface-white?style=for-the-badge&logo=Huggingface&logoColor=yellow)
+* - Model API, Stream Outputs
 * ![Streamlit](https://img.shields.io/badge/Streamlit-white?style=for-the-badge&logo=Streamlit&logoColor=red)
+* - WEB UI / Interaction
 * ![Faiss](https://img.shields.io/badge/Faiss-white?style=for-the-badge&logo=meta&logoColor=blue)
+* - Vector Database
 * ![Sqlite3](https://img.shields.io/badge/Sqlite3-white?style=for-the-badge&logo=Sqlite&logoColor=blue)
+* - Document Database
 
 <!-- GETTING STARTED -->
 ## Getting Started
