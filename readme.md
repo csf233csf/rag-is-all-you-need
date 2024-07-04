@@ -12,9 +12,13 @@
 ### YouTube Video
 [![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
 
+## Major roadmap-log
+- **7/4/2024** Added **text preprocessing**. Implemented **Semantic Document Chunking**. Now the system **hybrid search combining dense (FAISS) and sparse (BM25) methods**. Improved the accuracy by quite a LOT.
+- **7/3/2024** 🎉 Added **Kmeans** Clustering Algorithm to cluster documents at your need. Now the user can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
+
 ## TO-DO LIST:
 * **Implement a Kmeans Clustering Algorithm to Cluster similarities. ✅**
-- 7/4/2024 🎉 Now we can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
+- 7/3/2024 🎉 Now we can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
 ![image](https://github.com/csf233csf/rag-is-all-you-need/assets/56235101/0fc504e9-f700-40cb-842d-ae18185b9183)
 * Summary Generation for better document understanding.
 * Semantic Search.
@@ -60,11 +64,26 @@ RAG stands for Retrieval-Augmented Generation, which is another way of letting a
 
 <!-- GETTING STARTED -->
 ## Getting Started
-
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
-
 ### Prerequisites & Installation
+  This Project needs a good GPU environment to run.
+  My own setup: 
+  ```
+  GPU: RTX 3080
+  CPU: I7-12700F
+  RAM: 32GB
+  System: Ubuntu 22.04.3 LTS, Linux
+  Python Version: 3.12.4 
+  ```
+  I am able to run: 
+  ```
+  LLM_MODEL=Qwen/Qwen2-1.5B-Instruct
+  EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
+  MAX_TOKENS=512
+  TOP_K_DOCUMENTS=10
+  ```
+  You can try out different models. There are lighter models too. But notice a minimum of a 1.5B model is required for these type of tasks.
+  A 7B model is insanely accurate at retrieval and reasoning. I haven't tried any 70B model yet.
+  
   ```sh
   pip install -r requirements.txt
   ```
