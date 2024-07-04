@@ -12,29 +12,47 @@ from settings import settings
 import uuid
 from sklearn.cluster import KMeans
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+import torch
+import gc
 
 class RAGSystem:
     def __init__(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(settings.LLM_MODEL, trust_remote_code=True)
-        self.model = AutoModelForCausalLM.from_pretrained(settings.LLM_MODEL, device_map="auto", trust_remote_code=True).eval()
+        self.tokenizer = None
+        self.model = None
         self.embedding_model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP
         )
         self.vector_store = self.load_vector_store()
-        self.qa_chain = self.setup_qa_chain()
+        self.qa_chain = None
+        self.load_llm()
+
+    def load_llm(self):
+        if self.tokenizer is None or self.model is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(settings.LLM_MODEL, trust_remote_code=True)
+            self.model = AutoModelForCausalLM.from_pretrained(settings.LLM_MODEL, device_map="auto", trust_remote_code=True).eval()
+            self.setup_qa_chain()
+
+    def unload_llm(self):
+        del self.tokenizer
+        del self.model
+        del self.qa_chain
+        self.tokenizer = None
+        self.model = None
+        self.qa_chain = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        print(f"GPU memory allocated after unloading: {torch.cuda.memory_allocated() if torch.cuda.is_available() else 'N/A'}")
 
     def load_vector_store(self):
-        '''
-        Initializing Vector Database and load the database.
-        '''
         os.makedirs(settings.VECTOR_STORE_PATH, exist_ok=True)
         
         index_file = os.path.join(settings.VECTOR_STORE_PATH, "index.faiss")
         if os.path.exists(index_file):
-            # For debugging
-            # st.info(f"Loading existing vector store from {settings.VECTOR_STORE_PATH}")
             try:
                 return FAISS.load_local(settings.VECTOR_STORE_PATH, self.embedding_model, allow_dangerous_deserialization=True)
             except Exception as e:
@@ -48,9 +66,6 @@ class RAGSystem:
         return new_store
 
     def setup_qa_chain(self):
-        '''
-        Essential RAG techniques
-        '''
         pipe = pipeline(
             "text-generation",
             model=self.model,
@@ -66,7 +81,7 @@ class RAGSystem:
             input_variables=["context", "question"],
             template=f"{settings.SYSTEM_PROMPT}\n\nContext: {{context}}\n\nHuman: {{question}}\n\nAssistant:"
         )
-        return RetrievalQA.from_chain_type(
+        self.qa_chain = RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",
             retriever=self.vector_store.as_retriever(search_kwargs={"k": settings.TOP_K_DOCUMENTS}),
@@ -75,15 +90,20 @@ class RAGSystem:
         )
 
     def add_document(self, content, name):
-        '''
-        Add vectorization of documents
-        '''
+        if torch.cuda.is_available():
+            print(f"GPU memory allocated before unloading: {torch.cuda.memory_allocated()}")
+        self.unload_llm()  # Unload LLM to free up GPU memory
+        
         texts = self.text_splitter.split_text(content)
         metadatas = [{"source": name, "id": str(uuid.uuid4())} for _ in texts]
         self.vector_store.add_texts(texts, metadatas=metadatas)
         self.vector_store.save_local(settings.VECTOR_STORE_PATH)
         st.success(f"Document '{name}' added successfully. Vector store saved to {settings.VECTOR_STORE_PATH}")
-
+        
+        self.load_llm()  # Reload LLM after document addition
+        if torch.cuda.is_available():
+            print(f"GPU memory allocated after reloading: {torch.cuda.memory_allocated()}")
+    
     def get_all_documents(self):
         return [
             {"id": doc.metadata.get("id"), "name": doc.metadata.get("source"), "content": doc.page_content}
@@ -103,9 +123,8 @@ class RAGSystem:
         st.success("Vector store cleared successfully!")
 
     def generate_stream(self, query):
-        '''
-        Generates Stream Outputs of LLM
-        '''
+        self.load_llm()  # Ensure LLM is loaded before generation
+        
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
         
         docs = self.vector_store.similarity_search(query, k=settings.TOP_K_DOCUMENTS)
@@ -132,8 +151,9 @@ class RAGSystem:
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP
         )
-        self.qa_chain = self.setup_qa_chain()
-
+        self.unload_llm()  # Unload the current LLM
+        self.load_llm()  # Reload LLM with updated settings
+        
     def get_vector_representations(self):
         return np.array([self.vector_store.index.reconstruct(i) for i in range(self.vector_store.index.ntotal)])
 

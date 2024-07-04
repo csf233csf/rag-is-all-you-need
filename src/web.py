@@ -65,7 +65,7 @@ def config_page(rag_system):
 
 def document_management_page(rag_system):
     st.title("📚 Document Management")
-    
+    # For Your Information!
     # st.warning("The vector store is loaded with 'allow_dangerous_deserialization=True'. Ensure that the vector store file is from a trusted source.")
 
     st.subheader("Add New Document")
@@ -158,7 +158,7 @@ def cluster_analysis_page(rag_system):
             for doc in info['documents']:
                 st.write(f"- {doc['name']}")
             
-            #TODO
+            #TODO Implement an algorithm to find the most representative terms in each clusters
             # st.write("Most representative terms:")
 
     st.subheader("Query Cluster Similarity")
