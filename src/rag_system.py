@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import SpacyTextSplitter
 from langchain.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
@@ -16,18 +16,24 @@ from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import gc
 import json
+import re
+from typing import List, Dict, Tuple
+from rank_bm25 import BM25Okapi
+import spacy
 
 class RAGSystem:
     def __init__(self):
         self.tokenizer = None
         self.model = None
         self.embedding_model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP
-        )
+        self.nlp = spacy.load("en_core_web_sm")
+        self.text_splitter = SpacyTextSplitter(chunk_size=settings.CHUNK_SIZE, pipeline="en_core_web_sm")
         self.vector_store = self.load_vector_store()
         self.qa_chain = None
+        self.embedding_cache = {}
+        self.bm25 = None
+        self.corpus = []
+        self.feedback_store = {}
         self.load_llm()
 
     def load_llm(self):
@@ -47,7 +53,6 @@ class RAGSystem:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
-        print(f"GPU memory allocated after unloading: {torch.cuda.memory_allocated() if torch.cuda.is_available() else 'N/A'}")
 
     def load_vector_store(self):
         os.makedirs(settings.VECTOR_STORE_PATH, exist_ok=True)
@@ -90,43 +95,76 @@ class RAGSystem:
             chain_type_kwargs={"prompt": prompt_template}
         )
 
-    def add_document(self, content, name, progress_callback=None):
+    def preprocess_text(self, text: str) -> str:
+        # Remove special characters and normalize whitespace
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    def add_document(self, content: str, name: str, progress_callback=None):
         self.unload_llm()
         
+        content = self.preprocess_text(content)
         texts = self.text_splitter.split_text(content)
         total_chunks = len(texts)
         
         for i, chunk in enumerate(texts):
             metadata = {"source": name, "id": str(uuid.uuid4())}
             self.vector_store.add_texts([chunk], [metadata])
+            self.corpus.append(chunk)
             if progress_callback:
                 progress_callback((i + 1) / total_chunks)
         
         self.vector_store.save_local(settings.VECTOR_STORE_PATH)
+        self._update_bm25()
         self.load_llm()
 
-    def get_all_documents(self):
+    def _update_bm25(self):
+        tokenized_corpus = [doc.split() for doc in self.corpus]
+        self.bm25 = BM25Okapi(tokenized_corpus)
+
+    def get_embedding(self, text: str) -> np.ndarray:
+        if text not in self.embedding_cache:
+            self.embedding_cache[text] = self.embedding_model.embed_query(text)
+        return self.embedding_cache[text]
+
+    def hybrid_search(self, query: str, k: int = 5) -> List[Dict]:
+        dense_results = self.vector_store.similarity_search(query, k=k)
+        
+        # BM25 search
+        tokenized_query = query.split()
+        bm25_scores = self.bm25.get_scores(tokenized_query)
+        top_n = min(k, len(self.corpus))
+        top_bm25_indices = np.argsort(bm25_scores)[::-1][:top_n]
+        
+        # Combine results
+        combined_results = dense_results
+        for idx in top_bm25_indices:
+            doc = self.vector_store.docstore._dict[list(self.vector_store.docstore._dict.keys())[idx]]
+            if doc not in combined_results:
+                combined_results.append(doc)
+        
+        return combined_results[:k]
+
+    def query_documents(self, query: str, top_k: int = 5) -> List[Dict]:
+        query_vector = self.get_embedding(query)
+        results = self.hybrid_search(query, k=top_k)
         return [
-            {"id": doc.metadata.get("id"), "name": doc.metadata.get("source"), "content": doc.page_content}
-            for doc in self.vector_store.docstore._dict.values()
+            {
+                'id': doc.metadata.get('id', 'Unknown'),
+                'name': doc.metadata.get('source', 'Unknown'),
+                'content': doc.page_content,
+                'similarity': cosine_similarity([query_vector], [self.get_embedding(doc.page_content)])[0][0]
+            }
+            for doc in results
         ]
 
-    def delete_document(self, doc_id):
-        docs_to_keep = [doc for doc in self.vector_store.docstore._dict.values() if doc.metadata.get("id") != doc_id]
-        new_store = FAISS.from_documents(docs_to_keep, self.embedding_model)
-        new_store.save_local(settings.VECTOR_STORE_PATH)
-        self.vector_store = new_store
-
-    def clear_vector_store(self):
-        self.vector_store = FAISS.from_texts(["Vector store cleared"], self.embedding_model)
-        self.vector_store.save_local(settings.VECTOR_STORE_PATH)
-
-    def generate_stream(self, query):
-        self.load_llm()  # Ensure LLM is loaded before generation
+    def generate_stream(self, query: str):
+        self.load_llm()
         
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
         
-        docs = self.vector_store.similarity_search(query, k=settings.TOP_K_DOCUMENTS)
+        docs = self.hybrid_search(query, k=settings.TOP_K_DOCUMENTS)
         context = "\n".join([doc.page_content for doc in docs])
         
         full_prompt = self.qa_chain.combine_documents_chain.llm_chain.prompt.format(
@@ -145,13 +183,40 @@ class RAGSystem:
 
         thread.join()
 
+    def update_based_on_feedback(self, query: str, response: str, rating: int):
+        if query not in self.feedback_store:
+            self.feedback_store[query] = []
+        self.feedback_store[query].append((response, rating))
+        
+        # If we have enough feedback, we could maybe retrain or fine-tune the model.??
+        if len(self.feedback_store) > 100:
+            #TODO maybe write model fine-tuning or retrieval adjustments here.
+            pass
+
+    def get_all_documents(self):
+        return [
+            {"id": doc.metadata.get("id"), "name": doc.metadata.get("source"), "content": doc.page_content}
+            for doc in self.vector_store.docstore._dict.values()
+        ]
+
+    def delete_document(self, doc_id):
+        docs_to_keep = [doc for doc in self.vector_store.docstore._dict.values() if doc.metadata.get("id") != doc_id]
+        new_store = FAISS.from_documents(docs_to_keep, self.embedding_model)
+        new_store.save_local(settings.VECTOR_STORE_PATH)
+        self.vector_store = new_store
+        self.corpus = [doc.page_content for doc in docs_to_keep]
+        self._update_bm25()
+
+    def clear_vector_store(self):
+        self.vector_store = FAISS.from_texts(["Vector store cleared"], self.embedding_model)
+        self.vector_store.save_local(settings.VECTOR_STORE_PATH)
+        self.corpus = ["Vector store cleared"]
+        self._update_bm25()
+
     def update_config(self):
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP
-        )
-        self.unload_llm()  # Unload the current LLM
-        self.load_llm()  # Reload LLM with updated settings
+        self.text_splitter = SpacyTextSplitter(chunk_size=settings.CHUNK_SIZE, pipeline="en_core_web_sm")
+        self.unload_llm()
+        self.load_llm()
 
     def get_vector_representations(self):
         return np.array([self.vector_store.index.reconstruct(i) for i in range(self.vector_store.index.ntotal)])

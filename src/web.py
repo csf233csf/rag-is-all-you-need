@@ -39,6 +39,13 @@ def chatbot_page(rag_system):
                 message_placeholder.markdown(full_response + "▌")
             message_placeholder.markdown(full_response)
         st.session_state.messages.append({"role": "assistant", "content": full_response})
+        
+        # Feedback mechanism
+        feedback = st.radio("Was this response helpful?", ("Yes", "No"))
+        if st.button("Submit Feedback"):
+            rating = 1 if feedback == "Yes" else 0
+            rag_system.update_based_on_feedback(prompt, full_response, rating)
+            st.success("Thank you for your feedback!")
 
 def config_page(rag_system):
     st.title("⚙️ RAG Configuration")
@@ -133,9 +140,9 @@ def document_management_page(rag_system):
 
     # Clear all documents
     if st.button("Clear All Documents"):
-        if st.checkbox("I understand this will delete all documents"):
-            rag_system.clear_vector_store()
-            st.rerun()
+        # if st.checkbox("I understand this will delete all documents"):
+        rag_system.clear_vector_store()
+        st.rerun()
 
     # Display some stats
     st.header("Document Store Statistics")
