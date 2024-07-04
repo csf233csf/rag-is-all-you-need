@@ -5,6 +5,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.decomposition import PCA
 import numpy as np
+import pandas as pd
+import os
+import json
 
 def setup_page():
     st.set_page_config(layout="wide", page_title="Advanced RAG Chatbot", page_icon="🤖")
@@ -15,7 +18,7 @@ def sidebar():
         return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management", "🎨 Vector Visualization", "🔬 Cluster Analysis"], key="navigation")
 
 def chatbot_page(rag_system):
-    st.title("💬 RAG Chatbot")
+    st.title("💬 Advanced RAG Chatbot")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -40,7 +43,7 @@ def chatbot_page(rag_system):
 def config_page(rag_system):
     st.title("⚙️ RAG Configuration")
 
-    max_tokens = st.number_input("Max Tokens", min_value=1, max_value=4096, value=settings.MAX_TOKENS)
+    max_tokens = st.number_input("Max Tokens", min_value=1, max_value=2048, value=settings.MAX_TOKENS)
     temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, value=settings.TEMPERATURE, step=0.1)
     top_p = st.slider("Top P", min_value=0.0, max_value=1.0, value=settings.TOP_P, step=0.05)
     repetition_penalty = st.slider("Repetition Penalty", min_value=1.0, max_value=2.0, value=settings.REPETITION_PENALTY, step=0.05)
@@ -65,38 +68,82 @@ def config_page(rag_system):
 
 def document_management_page(rag_system):
     st.title("📚 Document Management")
-    # For Your Information!
-    # st.warning("The vector store is loaded with 'allow_dangerous_deserialization=True'. Ensure that the vector store file is from a trusted source.")
 
-    st.subheader("Add New Document")
+    # Add new document section
+    st.header("Add New Document")
     uploaded_file = st.file_uploader("Upload a document (TXT or PDF)", type=["txt", "pdf"])
     if uploaded_file is not None:
         document_name = st.text_input("Document Name", value=uploaded_file.name)
-        if uploaded_file.type == "text/plain":
-            content = uploaded_file.read().decode()
-        elif uploaded_file.type == "application/pdf":
-            content = extract_text_from_pdf(uploaded_file)
-        
         if st.button("Add Document"):
-            rag_system.add_document(content, document_name)
+            if uploaded_file.type == "text/plain":
+                content = uploaded_file.read().decode()
+            elif uploaded_file.type == "application/pdf":
+                content = extract_text_from_pdf(uploaded_file)
+            
+            with st.status("Adding document...", expanded=True) as status:
+                st.write("Processing document...")
+                progress_bar = st.progress(0)
+                rag_system.add_document(content, document_name, lambda p: progress_bar.progress(p))
+                status.update(label="Document added successfully!", state="complete")
             st.rerun()
 
-    st.subheader("Manage Documents")
-    documents = rag_system.get_all_documents()
-    for doc in documents:
-        col1, col2, col3 = st.columns([3, 1, 1])
-        col1.write(f"{doc['name']}")
-        if col2.button("View", key=f"view_{doc['id']}"):
-            st.text_area("Document Content", value=doc['content'], height=200)
-        if col3.button("Delete", key=f"delete_{doc['id']}"):
-            rag_system.delete_document(doc['id'])
-            st.rerun()
+    # Document list and management section
+    st.header("Manage Documents")
 
+    # Get all documents
+    all_documents = rag_system.get_all_documents()
+
+    # Search functionality
+    search_query = st.text_input("Search documents", "")
+    if search_query:
+        all_documents = [doc for doc in all_documents if search_query.lower() in doc['name'].lower()]
+
+    # Pagination
+    docs_per_page = 10
+    total_pages = max(1, (len(all_documents) - 1) // docs_per_page + 1)
+    
+    if total_pages > 1:
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col1:
+            if st.button("Previous", disabled=(st.session_state.get('page_number', 1) == 1)):
+                st.session_state.page_number = max(1, st.session_state.get('page_number', 1) - 1)
+        with col2:
+            page_number = st.slider("Page", min_value=1, max_value=total_pages, value=st.session_state.get('page_number', 1))
+            st.session_state.page_number = page_number
+        with col3:
+            if st.button("Next", disabled=(st.session_state.get('page_number', 1) == total_pages)):
+                st.session_state.page_number = min(total_pages, st.session_state.get('page_number', 1) + 1)
+    else:
+        page_number = 1
+        st.session_state.page_number = 1
+
+    start_idx = (page_number - 1) * docs_per_page
+    end_idx = start_idx + docs_per_page
+
+    # Display documents as expandable sections
+    if all_documents:
+        for doc in all_documents[start_idx:end_idx]:
+            with st.expander(f"{doc['name']} (ID: {doc['id']})"):
+                st.write(doc['content'][:500] + "..." if len(doc['content']) > 500 else doc['content'])
+                if st.button("Delete", key=f"delete_{doc['id']}"):
+                    rag_system.delete_document(doc['id'])
+                    st.rerun()
+    else:
+        st.write("No documents found.")
+
+    # Clear all documents
     if st.button("Clear All Documents"):
-        rag_system.clear_vector_store()
-        st.rerun()
+        if st.checkbox("I understand this will delete all documents"):
+            rag_system.clear_vector_store()
+            st.rerun()
 
-def  vector_visualization_page(rag_system):
+    # Display some stats
+    st.header("Document Store Statistics")
+    st.write(f"Total number of documents: {len(all_documents)}")
+    st.write(f"Vector Store Path: {settings.VECTOR_STORE_PATH}")
+    st.write(f"Vector Store Exists: {os.path.exists(settings.VECTOR_STORE_PATH)}")
+
+def vector_visualization_page(rag_system):
     st.title("🎨 Vector Visualization")
 
     vectors = rag_system.get_vector_representations()
@@ -112,10 +159,11 @@ def  vector_visualization_page(rag_system):
             title="3D Visualization of Document Vectors",
             labels={'x': 'PCA 1', 'y': 'PCA 2', 'z': 'PCA 3'}
         )
-        st.plotly_chart(fig)
+        fig.update_layout(height=900)
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("Not enough documents to visualize. Please add more documents.")
-
+        
 def cluster_analysis_page(rag_system):
     st.title("🔬 Cluster Analysis")
 

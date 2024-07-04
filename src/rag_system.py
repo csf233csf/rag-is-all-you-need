@@ -15,6 +15,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import gc
+import json
 
 class RAGSystem:
     def __init__(self):
@@ -89,21 +90,21 @@ class RAGSystem:
             chain_type_kwargs={"prompt": prompt_template}
         )
 
-    def add_document(self, content, name):
-        if torch.cuda.is_available():
-            print(f"GPU memory allocated before unloading: {torch.cuda.memory_allocated()}")
-        self.unload_llm()  # Unload LLM to free up GPU memory
+    def add_document(self, content, name, progress_callback=None):
+        self.unload_llm()
         
         texts = self.text_splitter.split_text(content)
-        metadatas = [{"source": name, "id": str(uuid.uuid4())} for _ in texts]
-        self.vector_store.add_texts(texts, metadatas=metadatas)
-        self.vector_store.save_local(settings.VECTOR_STORE_PATH)
-        st.success(f"Document '{name}' added successfully. Vector store saved to {settings.VECTOR_STORE_PATH}")
+        total_chunks = len(texts)
         
-        self.load_llm()  # Reload LLM after document addition
-        if torch.cuda.is_available():
-            print(f"GPU memory allocated after reloading: {torch.cuda.memory_allocated()}")
-    
+        for i, chunk in enumerate(texts):
+            metadata = {"source": name, "id": str(uuid.uuid4())}
+            self.vector_store.add_texts([chunk], [metadata])
+            if progress_callback:
+                progress_callback((i + 1) / total_chunks)
+        
+        self.vector_store.save_local(settings.VECTOR_STORE_PATH)
+        self.load_llm()
+
     def get_all_documents(self):
         return [
             {"id": doc.metadata.get("id"), "name": doc.metadata.get("source"), "content": doc.page_content}
@@ -115,12 +116,10 @@ class RAGSystem:
         new_store = FAISS.from_documents(docs_to_keep, self.embedding_model)
         new_store.save_local(settings.VECTOR_STORE_PATH)
         self.vector_store = new_store
-        st.success(f"Document with ID {doc_id} deleted successfully.")
 
     def clear_vector_store(self):
         self.vector_store = FAISS.from_texts(["Vector store cleared"], self.embedding_model)
         self.vector_store.save_local(settings.VECTOR_STORE_PATH)
-        st.success("Vector store cleared successfully!")
 
     def generate_stream(self, query):
         self.load_llm()  # Ensure LLM is loaded before generation
@@ -153,7 +152,7 @@ class RAGSystem:
         )
         self.unload_llm()  # Unload the current LLM
         self.load_llm()  # Reload LLM with updated settings
-        
+
     def get_vector_representations(self):
         return np.array([self.vector_store.index.reconstruct(i) for i in range(self.vector_store.index.ntotal)])
 
@@ -189,3 +188,23 @@ class RAGSystem:
                 'center': cluster_centers[i] if i < len(cluster_centers) else None
             }
         return cluster_info, vectors
+
+    def export_cluster(self, cluster_id):
+        cluster_info, _ = self.get_cluster_info()
+        if cluster_id in cluster_info:
+            cluster_data = cluster_info[cluster_id]
+            return json.dumps(cluster_data, indent=2)
+        return None
+
+    def query_documents(self, query, top_k=5):
+        query_vector = self.embedding_model.encode([query])[0]
+        doc_ids = self.vector_store.similarity_search(query, k=top_k)
+        results = []
+        for doc in doc_ids:
+            results.append({
+                'id': doc.metadata.get('id', 'Unknown'),
+                'name': doc.metadata.get('source', 'Unknown'),
+                'content': doc.page_content,
+                'similarity': cosine_similarity([query_vector], [self.embedding_model.encode([doc.page_content])[0]])[0][0]
+            })
+        return sorted(results, key=lambda x: x['similarity'], reverse=True)
