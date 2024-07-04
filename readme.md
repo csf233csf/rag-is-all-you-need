@@ -69,6 +69,23 @@ This is an example of how you may give instructions on setting up your project l
 To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites & Installation
+  This Project needs a good GPU environment to run.
+  My own setup: 
+  ```
+  GPU: RTX 3080
+  CPU: I7-12700F
+  RAM: 32GB
+  ```
+  I am able to run: 
+  ```
+  LLM_MODEL=Qwen/Qwen2-1.5B-Instruct
+  EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
+  MAX_TOKENS=512
+  TOP_K_DOCUMENTS=10
+  ```
+  You can try out different models. There are lighter models too. But notice a minimum of a 1.5B model is required for these type of tasks.
+  A 7B model is insanely accurate at retrieval and reasoning. I haven't tried any 70B model yet.
+  
   ```sh
   pip install -r requirements.txt
   ```
