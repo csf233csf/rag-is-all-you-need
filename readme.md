@@ -12,9 +12,13 @@
 ### YouTube Video
 [![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
 
+## Major roadmap-log
+- **7/4/2024** Added **text preprocessing**. Implemented **Semantic Document Chunking**. Now the system **hybrid search combining dense (FAISS) and sparse (BM25) methods**. Improved the accuracy by quite a LOT.
+- **7/3/2024** 🎉 Added **Kmeans** Clustering Algorithm to cluster documents at your need. Now the user can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
+
 ## TO-DO LIST:
 * **Implement a Kmeans Clustering Algorithm to Cluster similarities. ✅**
-- 7/4/2024 🎉 Now we can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
+- 7/3/2024 🎉 Now we can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
 ![image](https://github.com/csf233csf/rag-is-all-you-need/assets/56235101/0fc504e9-f700-40cb-842d-ae18185b9183)
 * Summary Generation for better document understanding.
 * Semantic Search.
