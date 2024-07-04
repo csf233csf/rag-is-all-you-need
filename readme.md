@@ -14,11 +14,8 @@
 
 ## TO-DO LIST:
 * Implement a Kmeans Clustering Algorithm to Cluster similarities. ✅
-- Now we can cluster the vectors into different clusters based on their similarities. You can even query clusters and vectors!
+- 7/4/2024 🎉 Now we can cluster the vectors into different clusters based on their similarities. You can even query clusters and vectors!
 ![image](https://github.com/csf233csf/rag-is-all-you-need/assets/56235101/0fc504e9-f700-40cb-842d-ae18185b9183)
-
-
-
 * Summary Generation for better document understanding.
 * Semantic Search.
 * Name Entity Recognition (NER) to extract key entities in documents.
