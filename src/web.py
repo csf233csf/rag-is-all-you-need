@@ -2,7 +2,9 @@ import streamlit as st
 from utils import extract_text_from_pdf
 from settings import settings
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.decomposition import PCA
+import numpy as np
 
 def setup_page():
     st.set_page_config(layout="wide", page_title="Advanced RAG Chatbot", page_icon="🤖")
@@ -10,7 +12,7 @@ def setup_page():
 def sidebar():
     with st.sidebar:
         st.title("🧭 Navigation")
-        return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management", "🎨 Vector Visualization"], key="navigation")
+        return st.radio("Go to", ["💬 Chatbot", "⚙️ Config", "📚 Document Management", "🎨 Vector Visualization", "🔬 Cluster Analysis"], key="navigation")
 
 def chatbot_page(rag_system):
     st.title("💬 RAG Chatbot")
@@ -113,3 +115,60 @@ def  vector_visualization_page(rag_system):
         st.plotly_chart(fig)
     else:
         st.warning("Not enough documents to visualize. Please add more documents.")
+
+def cluster_analysis_page(rag_system):
+    st.title("🔬 Cluster Analysis")
+
+    n_clusters = st.slider("Number of Clusters", min_value=2, max_value=10, value=5)
+    result = rag_system.get_cluster_info(n_clusters)
+
+    if result is None:
+        st.warning("Not enough documents to perform clustering. Please add more documents.")
+        return
+
+    cluster_info, vectors = result
+
+    # Visualize clusters
+    pca = PCA(n_components=3)
+    vectors_3d = pca.fit_transform(vectors)
+
+    fig = go.Figure()
+
+    for i, info in cluster_info.items():
+        cluster_docs = info['documents']
+        cluster_indices = [j for j, doc in enumerate(rag_system.get_all_documents()) if doc['id'] in [d['id'] for d in cluster_docs]]
+        cluster_points = vectors_3d[cluster_indices]
+        
+        fig.add_trace(go.Scatter3d(
+            x=cluster_points[:, 0],
+            y=cluster_points[:, 1],
+            z=cluster_points[:, 2],
+            mode='markers',
+            marker=dict(size=5),
+            name=f'Cluster {i}'
+        ))
+
+    fig.update_layout(title="3D Visualization of Document Clusters")
+    st.plotly_chart(fig)
+
+    # Display cluster information
+    for i, info in cluster_info.items():
+        with st.expander(f"Cluster {i} (Size: {info['size']})"):
+            st.write("Documents in this cluster:")
+            for doc in info['documents']:
+                st.write(f"- {doc['name']}")
+            
+            #TODO
+            # st.write("Most representative terms:")
+
+    st.subheader("Query Cluster Similarity")
+    query = st.text_input("Enter a query to find the most similar cluster:")
+    if query:
+        query_vector = rag_system.embedding_model.embed_query(query)
+        similarities = [np.dot(query_vector, center) / (np.linalg.norm(query_vector) * np.linalg.norm(center)) 
+                        for center in [info['center'] for info in cluster_info.values() if info['center'] is not None]]
+        if similarities:
+            most_similar_cluster = max(range(len(similarities)), key=similarities.__getitem__)
+            st.write(f"The query is most similar to Cluster {most_similar_cluster}")
+        else:
+            st.write("Unable to determine the most similar cluster.")

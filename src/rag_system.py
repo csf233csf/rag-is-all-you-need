@@ -10,14 +10,11 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStream
 from threading import Thread
 from settings import settings
 import uuid
+from sklearn.cluster import KMeans
+import numpy as np
 
 class RAGSystem:
     def __init__(self):
-        '''
-        Load Model and Tokenizer
-        Load Embedding Model, Chunk Splitter
-        Load Vector Database, QA Chain
-        '''
         self.tokenizer = AutoTokenizer.from_pretrained(settings.LLM_MODEL, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(settings.LLM_MODEL, device_map="auto", trust_remote_code=True).eval()
         self.embedding_model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
@@ -138,8 +135,37 @@ class RAGSystem:
         self.qa_chain = self.setup_qa_chain()
 
     def get_vector_representations(self):
-        '''
-        Vector Visualization for Visualization Page
-        '''
-        vectors = self.vector_store.index.reconstruct_n(0, self.vector_store.index.ntotal)
-        return vectors
+        return np.array([self.vector_store.index.reconstruct(i) for i in range(self.vector_store.index.ntotal)])
+
+    def cluster_documents(self, n_clusters=5):
+        vectors = self.get_vector_representations()
+        documents = self.get_all_documents()
+        
+        if len(vectors) < n_clusters or len(documents) < n_clusters:
+            return None, None, None  # Not enough documents to cluster
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        cluster_labels = kmeans.fit_predict(vectors)
+        
+        clustered_docs = []
+        for i, doc in enumerate(documents):
+            if i < len(cluster_labels):  # Ensure we don't go out of bounds
+                doc['cluster'] = int(cluster_labels[i])
+                clustered_docs.append(doc)
+        
+        return clustered_docs, kmeans.cluster_centers_, vectors
+
+    def get_cluster_info(self, n_clusters=5):
+        clustered_docs, cluster_centers, vectors = self.cluster_documents(n_clusters)
+        if clustered_docs is None:
+            return None
+
+        cluster_info = {}
+        for i in range(n_clusters):
+            cluster_docs = [doc for doc in clustered_docs if doc['cluster'] == i]
+            cluster_info[i] = {
+                'size': len(cluster_docs),
+                'documents': cluster_docs,
+                'center': cluster_centers[i] if i < len(cluster_centers) else None
+            }
+        return cluster_info, vectors
