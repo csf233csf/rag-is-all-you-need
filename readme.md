@@ -71,6 +71,8 @@ RAG stands for Retrieval-Augmented Generation, which is another way of letting a
   GPU: RTX 3080
   CPU: I7-12700F
   RAM: 32GB
+  System: Ubuntu 22.04.3 LTS, Linux
+  Python Version: 3.12.4 
   ```
   I am able to run: 
   ```
