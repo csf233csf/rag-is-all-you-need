@@ -64,10 +64,6 @@ RAG stands for Retrieval-Augmented Generation, which is another way of letting a
 
 <!-- GETTING STARTED -->
 ## Getting Started
-
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
-
 ### Prerequisites & Installation
   This Project needs a good GPU environment to run.
   My own setup: 
