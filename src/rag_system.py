@@ -120,8 +120,11 @@ class RAGSystem:
         self.load_llm()
 
     def _update_bm25(self):
-        tokenized_corpus = [doc.split() for doc in self.corpus]
-        self.bm25 = BM25Okapi(tokenized_corpus)
+        if self.corpus:
+            tokenized_corpus = [doc.split() for doc in self.corpus]
+            self.bm25 = BM25Okapi(tokenized_corpus)
+        else:
+            self.bm25 = None
 
     def get_embedding(self, text: str) -> np.ndarray:
         if text not in self.embedding_cache:
@@ -131,21 +134,24 @@ class RAGSystem:
     def hybrid_search(self, query: str, k: int = 5) -> List[Dict]:
         dense_results = self.vector_store.similarity_search(query, k=k)
         
-        # BM25 search
-        tokenized_query = query.split()
-        bm25_scores = self.bm25.get_scores(tokenized_query)
-        top_n = min(k, len(self.corpus))
-        top_bm25_indices = np.argsort(bm25_scores)[::-1][:top_n]
+        if self.bm25 is not None:
+            # BM25 search
+            tokenized_query = query.split()
+            bm25_scores = self.bm25.get_scores(tokenized_query)
+            top_n = min(k, len(self.corpus))
+            top_bm25_indices = np.argsort(bm25_scores)[::-1][:top_n]
+            
+            # Combine results
+            combined_results = dense_results
+            for idx in top_bm25_indices:
+                doc = self.vector_store.docstore._dict[list(self.vector_store.docstore._dict.keys())[idx]]
+                if doc not in combined_results:
+                    combined_results.append(doc)
+            
+            return combined_results[:k]
+        else:
+            return dense_results
         
-        # Combine results
-        combined_results = dense_results
-        for idx in top_bm25_indices:
-            doc = self.vector_store.docstore._dict[list(self.vector_store.docstore._dict.keys())[idx]]
-            if doc not in combined_results:
-                combined_results.append(doc)
-        
-        return combined_results[:k]
-
     def query_documents(self, query: str, top_k: int = 5) -> List[Dict]:
         query_vector = self.get_embedding(query)
         results = self.hybrid_search(query, k=top_k)
@@ -165,6 +171,10 @@ class RAGSystem:
         streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
         
         docs = self.hybrid_search(query, k=settings.TOP_K_DOCUMENTS)
+        if not docs:
+            yield "I'm sorry, but I don't have any relevant information to answer your question."
+            return
+
         context = "\n".join([doc.page_content for doc in docs])
         
         full_prompt = self.qa_chain.combine_documents_chain.llm_chain.prompt.format(
@@ -182,7 +192,7 @@ class RAGSystem:
             yield new_text
 
         thread.join()
-
+        
     def update_based_on_feedback(self, query: str, response: str, rating: int):
         if query not in self.feedback_store:
             self.feedback_store[query] = []
