@@ -13,6 +13,7 @@
 [![Watch the video](https://img.youtube.com/vi/MUTBpjidTyY/maxresdefault.jpg)](https://youtu.be/MUTBpjidTyY)
 
 ## Major roadmap-log
+- **1/15/2024** Considering rewriting the whole program without **langchain** because of its abstract code api.
 - **7/4/2024** Added **text preprocessing**. Implemented **Semantic Document Chunking**. Now the system **hybrid search combining dense (FAISS) and sparse (BM25) methods**. Improved the accuracy by quite a LOT.
 - **7/3/2024** 🎉 Added **Kmeans** Clustering Algorithm to cluster documents at your need. Now the user can cluster the vectors into different clusters based on their similarities. **You can even query clusters and vectors**!
 
